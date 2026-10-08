@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -13,11 +11,9 @@ class UptimeMethodChannel {
 
   static const MethodChannel _channel = MethodChannel('chronify/uptime');
 
-  /// Fetches the native monotonic uptime in milliseconds.
+  /// Fetches native monotonic uptime in milliseconds.
   ///
-  /// Uses `SystemClock.elapsedRealtime()` on Android and
-  /// `ProcessInfo.processInfo.systemUptime` on iOS.
-  /// Returns `0` if invocation fails or platform is unsupported.
+  /// Returns `0` if invocation fails, platform is unsupported, or native code throws.
   Future<int> getUptimeMs() async {
     try {
       final dynamic rawUptime = await _channel.invokeMethod('getUptimeMs');
@@ -30,15 +26,28 @@ class UptimeMethodChannel {
 
       return 0;
     } on PlatformException catch (e) {
-      debugPrint('Chronos: Failed to retrieve native uptime - ${e.message}');
+      // Handles native FlutterError thrown from Swift/Kotlin
+      switch (e.code) {
+        case 'SYSTEM_UPTIME_FAILED':
+          debugPrint(
+            'Chronify [iOS Error]: Kernel uptime failed - ${e.message}',
+          );
+          break;
+        case 'INVALID_METHOD':
+          debugPrint('Chronify: Invalid method call - ${e.message}');
+          break;
+        default:
+          debugPrint('Chronify: PlatformException [${e.code}] -${e.message}');
+      }
       return 0;
     } on MissingPluginException {
+      // Handles un-implemented platforms (e.g., running unit tests without channel mocks)
       debugPrint(
-        'Chronos: MethodChannel "chronify/uptime" not implemented on this platform.',
+        'Chronify: MethodChannel "chronify/uptime" not implemented on this platform.',
       );
       return 0;
     } catch (e) {
-      debugPrint('Chronos: Unexpected error reading uptime - $e');
+      debugPrint('Chronify: Unexpected error reading uptime - $e');
       return 0;
     }
   }
