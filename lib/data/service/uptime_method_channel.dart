@@ -9,7 +9,7 @@ class UptimeMethodChannel {
   /// Singleton instance of [UptimeMethodChannel].
   static final UptimeMethodChannel instance = UptimeMethodChannel._internal();
 
-  static const MethodChannel _channel = MethodChannel('chronify/uptime');
+  static const MethodChannel _channel = MethodChannel('chronos/uptime');
 
   /// Fetches native monotonic uptime in milliseconds.
   ///

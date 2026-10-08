@@ -1,4 +1,4 @@
-package com.example.chronify
+package com.chronos
 
 import android.os.SystemClock
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -9,7 +9,7 @@ class ChronosPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private lateinit var channel: MethodChannel
 
     override fun onAttachedToEngine(binding: FlutterPlugin.FlutterPluginBinding) {
-        channel = MethodChannel(binding.binaryMessenger, "chronify/uptime")
+        channel = MethodChannel(binding.binaryMessenger, "chronos/uptime")
         channel.setMethodCallHandler(this)
     }
 
