@@ -15,16 +15,12 @@ class MockTimeIntegrityChecks extends Mock implements TimeIntegrityChecks {}
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late MockCalcs mockCalcs;
-  late MockTimeIntegrityChecks mockIntegrityChecks;
   late ChronosController controller;
 
-  const MethodChannel channel = MethodChannel('chronify/uptime');
+  const MethodChannel channel = MethodChannel('chronos/uptime');
 
   setUp(() {
-    mockCalcs = MockCalcs();
-    mockIntegrityChecks = MockTimeIntegrityChecks();
-    controller = ChronosController(mockCalcs, mockIntegrityChecks);
+    controller = ChronosController(Calcs(), TimeIntegrityChecks());
   });
 
   tearDown(() {
@@ -50,42 +46,21 @@ void main() {
       final syncTime = DateTime.utc(2026, 10, 8, 12, 0, 0);
 
       // --- FIRST CALL: sync() triggers uptime -> consumes 10000ms ---
-      await controller.sync(networkDateTime: syncTime, networkLatencyMs: 30);
+      await controller.sync(networkDateTime: syncTime, networkLatencyMs: 3000);
 
       expect(controller.ref, isNotNull);
       expect(controller.ref!.hardwareUptimeMs, equals(10000));
 
-      // Mock Calcs & Integrity checks based on initial (10,000) and current (15,000)
-      when(() => mockCalcs.getElapsedTime(inital: 10000, last: 15000))
-          .thenReturn(const Duration(seconds: 5));
-
-      when(
-        () => mockIntegrityChecks.evaluateUptimeDeltaThreshold(
-          initalUptimeMs: 10000,
-          currentUptimeMs: 15000,
-        ),
-      ).thenReturn(const Trusted());
-
       // --- SECOND CALL: getTrueTime() triggers uptime -> consumes 15000ms ---
       final trueTime = await controller.getTrueTime();
 
-      // Verify calculated network time = syncTime + 5 seconds
-      expect(trueTime.time, equals(DateTime.utc(2026, 10, 8, 12, 0, 5)));
+      // Verify calculated network time = syncTime + 8 seconds
+      expect(trueTime.time, equals(DateTime.utc(2026, 10, 8, 12, 0, 8)));
       expect(trueTime.confidence, isA<HighConfidence>());
       expect(trueTime.confidence.timeIntegrity, isA<Trusted>());
 
       // Ensure both queued calls were consumed
       expect(uptimeQueue, isEmpty);
-
-      // Verify domain delegates received exact hardware values from channel
-      verify(() => mockCalcs.getElapsedTime(inital: 10000, last: 15000))
-          .called(1);
-      verify(
-        () => mockIntegrityChecks.evaluateUptimeDeltaThreshold(
-          initalUptimeMs: 10000,
-          currentUptimeMs: 15000,
-        ),
-      ).called(1);
     });
 
     test(
@@ -106,20 +81,6 @@ void main() {
 
         // 1st Call -> sync
         await controller.sync(networkDateTime: syncTime);
-
-        when(() => mockCalcs.getElapsedTime(inital: 10000, last: 2000))
-            .thenReturn(const Duration(seconds: -8));
-
-        when(
-          () => mockIntegrityChecks.evaluateUptimeDeltaThreshold(
-            initalUptimeMs: 10000,
-            currentUptimeMs: 2000,
-          ),
-        ).thenReturn(
-          const Inconsistent(
-            reason: 'Hardware uptime regressed (power-off or reboot detected)',
-          ),
-        );
 
         // 2nd Call -> getTrueTime
         final trueTime = await controller.getTrueTime();
@@ -142,7 +103,7 @@ void main() {
       final networkUtc = DateTime.utc(2026, 10, 8, 12, 0, 0);
 
       // 1. Sync network reference
-      await controller.sync(networkDateTime: networkUtc, networkLatencyMs: 50);
+      await controller.sync(networkDateTime: networkUtc, networkLatencyMs: 0);
 
       // 2. Simulate local OS wall clock advancing naturally by 15 seconds
       final initialLocalTime = DateTime(2026, 10, 8, 09, 0, 0); // Local time
@@ -152,16 +113,6 @@ void main() {
       final localOsDeltaMs = currentLocalTime
           .difference(initialLocalTime)
           .inMilliseconds;
-
-      when(() => mockCalcs.getElapsedTime(inital: 10000, last: 25000))
-          .thenReturn(const Duration(seconds: 15));
-
-      when(
-        () => mockIntegrityChecks.evaluateUptimeDeltaThreshold(
-          initalUptimeMs: 10000,
-          currentUptimeMs: 25000,
-        ),
-      ).thenReturn(const Trusted());
 
       // 3. Obtain TrueTime from plugin
       final trueTimeResult = await controller.getTrueTime();
@@ -192,16 +143,6 @@ void main() {
         const Duration(hours: 2),
       );
 
-      when(() => mockCalcs.getElapsedTime(inital: 10000, last: 20000))
-          .thenReturn(const Duration(seconds: 10));
-
-      when(
-        () => mockIntegrityChecks.evaluateUptimeDeltaThreshold(
-          initalUptimeMs: 10000,
-          currentUptimeMs: 20000,
-        ),
-      ).thenReturn(const Trusted());
-
       final trueTimeResult = await controller.getTrueTime();
 
       // Local OS clock says 07:00:00 (tampered), but TrueTime calculates 12:00:10 UTC (trusted)
@@ -230,20 +171,6 @@ void main() {
       final initialLocalTime = DateTime(2026, 10, 8, 09, 0, 0);
       final postRebootLocalTime = initialLocalTime.add(
         const Duration(minutes: 30),
-      );
-
-      when(() => mockCalcs.getElapsedTime(inital: 100000, last: 3000))
-          .thenReturn(const Duration(milliseconds: -97000));
-
-      when(
-        () => mockIntegrityChecks.evaluateUptimeDeltaThreshold(
-          initalUptimeMs: 100000,
-          currentUptimeMs: 3000,
-        ),
-      ).thenReturn(
-        const Inconsistent(
-          reason: 'Hardware uptime regressed (power-off or reboot detected)',
-        ),
       );
 
       final trueTimeResult = await controller.getTrueTime();

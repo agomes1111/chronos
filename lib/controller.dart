@@ -37,11 +37,15 @@ class ChronosController {
     final int _currentUptime = await uptime;
 
     final Duration elapsed = calcs.getElapsedTime(
-      inital: _ref.hardwareUptimeMs,
+      initial: _ref.hardwareUptimeMs,
       last: _currentUptime,
     );
 
-    final DateTime calculatedTime = _ref.networkDateTime.add(elapsed);
+    final DateTime calculatedTime = calcs.evaluateTrueTime(
+      ref: _ref.networkDateTime,
+      elapsed: elapsed,
+      networkLatencyMs: _ref.networkLatency ?? 0,
+    );
 
     final TimeIntegrity integrity = integrityChecks
         .evaluateUptimeDeltaThreshold(
