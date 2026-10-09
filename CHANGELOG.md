@@ -1,3 +1,4 @@
-## 0.0.1
+## 1.0.0
 
-* TODO: Describe initial release.
+* Beta version
+* Single clock for whole app (multiple clocks for further versions)
