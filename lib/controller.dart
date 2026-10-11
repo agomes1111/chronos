@@ -88,6 +88,33 @@ class ChronosController {
   Future<LocalZonedTime> getLocalZonedTime() async =>
       LocalZonedTime.fromInstant(await getInstant());
 
+  Future<int> evaluateInterval({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async {
+    assert(ref != null);
+    if (first != null && last != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return await IntervalHelper.evaluateInterval(
+        reference: (await getInstant()).utc,
+        first: first,
+        last: last,
+      );
+    } else if (firstDateTimeString != null && lastDateTimeString != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return await IntervalHelper.evaluateIntervalString(
+        reference: (await getInstant()).utc,
+        first: firstDateTimeString,
+        last: lastDateTimeString,
+        zoneName: ref!.serverUtcOffsetZoneName!,
+      );
+    } else {
+      throw StateError('must_provide_at_least_one_set_of_dates');
+    }
+  }
+
   Future<bool> isBetween({
     String? firstDateTimeString,
     String? lastDateTimeString,
