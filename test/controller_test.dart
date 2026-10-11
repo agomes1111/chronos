@@ -1,4 +1,5 @@
 import 'package:chronos/data/server_time_parser.dart';
+import 'package:chronos/data/service/cache_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,6 +8,10 @@ import 'package:chronos/data/entity/confidence.dart';
 import 'package:chronos/data/entity/time_integrity.dart';
 import 'package:chronos/domain/calcs.dart';
 import 'package:chronos/domain/time_integrity_checks.dart';
+import 'package:chronos/data/final.dart'; // TIME_REF_CACHE_KEY
+import 'package:mocktail/mocktail.dart';
+
+class MockCache extends Mock implements CacheService {}
 
 /// Simulates what the device OS would report via DateTime.now(): a true
 /// instant, a manual clock skew (user edits time in Settings) and a timezone
@@ -43,8 +48,26 @@ void main() {
   const minus3 = Duration(hours: -3);
 
   late ChronosController controller;
+  late MockCache cache;
   late List<int> uptimeQueue;
 
+  void stubCache(MockCache c, {String? stored}) {
+    when(() => c.ensureInitialized()).thenAnswer((_) async {});
+    when(() => c.getString(any())).thenAnswer((_) async => stored);
+    when(
+      () => c.storeString(
+        k: any(named: 'k'),
+        v: any(named: 'v'),
+      ),
+    ).thenAnswer((_) async => true);
+  }
+
+  setUp(() {
+    uptimeQueue = [];
+    cache = MockCache();
+    stubCache(cache);
+    controller = ChronosController(Calcs(), TimeIntegrityChecks(), cache);
+  });
   final syncTime = DateTime.utc(2026, 10, 8, 12, 0, 0);
 
   /// Only the native side is mocked. Each `getUptimeMs` call consumes the
@@ -62,12 +85,197 @@ void main() {
 
   setUp(() {
     uptimeQueue = [];
-    controller = ChronosController(Calcs(), TimeIntegrityChecks());
+    cache = MockCache();
+    stubCache(cache);
+    controller = ChronosController(Calcs(), TimeIntegrityChecks(), cache);
   });
 
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
+  });
+
+  group('ChronosController - cache', () {
+    const apiDate = '2026-10-09 18:05:31.411065';
+    const apiZone = 'America/Sao_Paulo';
+    final apiUtc = DateTime.utc(2026, 10, 9, 21, 5, 31, 411, 65);
+
+    String captureStored() =>
+        verify(
+              () => cache.storeString(
+                k: TIME_REF_CACHE_KEY,
+                v: captureAny(named: 'v'),
+              ),
+            ).captured.last
+            as String;
+
+    Future<ChronosController> restart(String? stored) async {
+      final c = MockCache();
+      stubCache(c, stored: stored);
+      final restarted = ChronosController(Calcs(), TimeIntegrityChecks(), c);
+      await restarted.ensureInitialized();
+      return restarted;
+    }
+
+    test('ensureInitialized with an empty cache leaves no reference', () async {
+      await controller.ensureInitialized();
+
+      verify(() => cache.ensureInitialized()).called(1);
+      verify(() => cache.getString(TIME_REF_CACHE_KEY)).called(1);
+      expect(controller.ref, isNull);
+    });
+
+    test('sync persists the reference under the cache key', () async {
+      mockUptime([10000]);
+
+      await controller.sync(networkDateTime: syncTime, serverUtcOffset: minus3);
+
+      verify(
+        () => cache.storeString(
+          k: TIME_REF_CACHE_KEY,
+          v: any(named: 'v'),
+        ),
+      ).called(1);
+    });
+
+    test('syncFromString persists the reference under the cache key', () async {
+      mockUptime([10000]);
+
+      await controller.syncFromString(date: apiDate, timezone: apiZone);
+
+      verify(
+        () => cache.storeString(
+          k: TIME_REF_CACHE_KEY,
+          v: any(named: 'v'),
+        ),
+      ).called(1);
+    });
+
+    test('every sync overwrites the cache', () async {
+      mockUptime([10000, 20000]);
+
+      await controller.sync(networkDateTime: syncTime);
+      await controller.sync(networkDateTime: syncTime);
+
+      verify(
+        () => cache.storeString(
+          k: any(named: 'k'),
+          v: any(named: 'v'),
+        ),
+      ).called(2);
+    });
+
+    test('a failed syncFromString does not touch the cache', () async {
+      mockUptime([10000]);
+
+      await expectLater(
+        controller.syncFromString(date: 'not-a-date', timezone: apiZone),
+        throwsFormatException,
+      );
+
+      verifyNever(
+        () => cache.storeString(
+          k: any(named: 'k'),
+          v: any(named: 'v'),
+        ),
+      );
+    });
+
+    test('reads never write to the cache', () async {
+      mockUptime([10000, 15000]);
+      await controller.sync(networkDateTime: syncTime);
+      clearInteractions(cache);
+
+      await controller.getInstant();
+
+      verifyNever(
+        () => cache.storeString(
+          k: any(named: 'k'),
+          v: any(named: 'v'),
+        ),
+      );
+    });
+
+    test('a stored reference is restored with all its fields', () async {
+      mockUptime([10000]);
+      await controller.syncFromString(
+        date: apiDate,
+        timezone: apiZone,
+        networkLatencyMs: 45,
+      );
+      final stored = captureStored();
+
+      final restarted = await restart(stored);
+
+      expect(restarted.ref, isNotNull);
+      expect(restarted.ref!.hardwareUptimeMs, equals(10000));
+      expect(restarted.ref!.networkDateTime, equals(apiUtc));
+      expect(restarted.ref!.networkLatency, equals(45));
+      expect(restarted.ref!.serverUtcOffset, equals(minus3));
+      expect(restarted.ref!.serverUtcOffsetZoneName, equals(apiZone));
+    });
+
+    test('a corrupt cache starts unsynced instead of crashing', () async {
+      final restarted = await restart('not-json');
+
+      expect(restarted.ref, isNull);
+      await expectLater(restarted.getInstant(), throwsStateError);
+    });
+
+    test('a cache with missing fields starts unsynced', () async {
+      final restarted = await restart('{}');
+
+      expect(restarted.ref, isNull);
+    });
+
+    test('after a corrupt cache, a new sync works normally', () async {
+      final restarted = await restart('not-json');
+
+      mockUptime([10000, 15000]);
+      await restarted.sync(networkDateTime: syncTime);
+      final instant = await restarted.getInstant();
+
+      expect(instant.utc, equals(syncTime.add(const Duration(seconds: 5))));
+    });
+
+    test('a restored reference keeps calculating time', () async {
+      mockUptime([10000]);
+      await controller.syncFromString(date: apiDate, timezone: apiZone);
+      final stored = captureStored();
+
+      final restarted = await restart(stored);
+      mockUptime([15000]); // same boot, 5s later
+      final instant = await restarted.getInstant();
+
+      expect(instant.utc, equals(apiUtc.add(const Duration(seconds: 5))));
+      expect(instant.confidence, isA<HighConfidence>());
+    });
+
+    test('a restored reference after a reboot gives low confidence', () async {
+      mockUptime([100000]);
+      await controller.syncFromString(date: apiDate, timezone: apiZone);
+      final stored = captureStored();
+
+      final restarted = await restart(stored);
+      mockUptime([2000]); // uptime restarted
+      final instant = await restarted.getInstant();
+
+      expect(instant.confidence, isA<LowConfidence>());
+      expect(instant.confidence.timeIntegrity, isA<Inconsistent>());
+    });
+
+    test('a restored reference is replaced by a new sync', () async {
+      mockUptime([10000]);
+      await controller.sync(networkDateTime: syncTime);
+      final restarted = await restart(captureStored());
+
+      mockUptime([30000]);
+      final newAnchor = DateTime.utc(2026, 10, 8, 14, 0, 0);
+      await restarted.sync(networkDateTime: newAnchor);
+
+      expect(restarted.ref!.networkDateTime, equals(newAnchor));
+      expect(restarted.ref!.hardwareUptimeMs, equals(30000));
+    });
   });
 
   group('ChronosController - before sync', () {

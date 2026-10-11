@@ -1,3 +1,4 @@
+import 'package:chronos/data/service/cache_service.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'package:chronos/controller.dart';
@@ -17,10 +18,17 @@ import 'package:chronos/domain/time_integrity_checks.dart';
 ///  - [nowLocalZoned]: [LocalZonedTime], in the device's OS timezone.
 class Chronos {
   Chronos._internal()
-    : _controller = ChronosController(Calcs(), TimeIntegrityChecks());
+    : _controller = ChronosController(
+        Calcs(),
+        TimeIntegrityChecks(),
+        CacheService(),
+      );
 
   @visibleForTesting
   Chronos.withController(this._controller);
+
+  Future<void> ensureInitialized() async =>
+      await _controller.ensureInitialized();
 
   /// Singleton instance of [Chronos].
   static final Chronos instance = Chronos._internal();

@@ -1,3 +1,4 @@
+import 'package:chronos/data/service/cache_service.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -7,6 +8,7 @@ import 'package:chronos/data/entity/confidence.dart';
 import 'package:chronos/data/entity/time_integrity.dart';
 import 'package:chronos/domain/calcs.dart';
 import 'package:chronos/domain/time_integrity_checks.dart';
+import 'package:mocktail/mocktail.dart';
 
 /// Simulates what the device OS would report via DateTime.now(): a true
 /// instant, a manual clock skew (user edits time in Settings) and a timezone
@@ -28,6 +30,8 @@ class FakeDeviceClock {
   DateTime get instantNow => trueUtc.add(skew);
 }
 
+class MockCache extends Mock implements CacheService {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -48,17 +52,34 @@ void main() {
   /// TOTP time step (RFC 6238, 30s) derived from the instant's epoch seconds.
   int totpCounter(int epochSeconds) => epochSeconds ~/ 30;
 
-  setUp(() {
+  late MockCache mockCache;
+
+  void stubCache(MockCache cache, {String? stored}) {
+    when(() => cache.ensureInitialized()).thenAnswer((_) async {});
+    when(() => cache.getString(any())).thenAnswer((_) async => stored);
+    when(
+      () => cache.storeString(
+        k: any(named: 'k'),
+        v: any(named: 'v'),
+      ),
+    ).thenAnswer((_) async => true);
+  }
+
+  Chronos buildChronos(MockCache cache) => Chronos.withController(
+    ChronosController(Calcs(), TimeIntegrityChecks(), cache),
+  );
+  setUp(() async {
     uptimeMs = 10000;
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (MethodCall call) async {
           return call.method == 'getUptimeMs' ? uptimeMs : null;
         });
 
-    // Fresh engine per test: the real controller and real collaborators.
-    chronos = Chronos.withController(
-      ChronosController(Calcs(), TimeIntegrityChecks()),
-    );
+    mockCache = MockCache();
+    stubCache(mockCache);
+    chronos = buildChronos(mockCache); // same instance that was stubbed
+
+    await chronos.ensureInitialized();
   });
 
   tearDown(() {

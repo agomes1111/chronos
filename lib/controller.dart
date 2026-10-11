@@ -6,7 +6,9 @@ import 'package:chronos/data/entity/time_integrity.dart';
 import 'package:chronos/data/entity/time_reference.dart';
 import 'package:chronos/data/final.dart';
 import 'package:chronos/data/server_time_parser.dart';
+import 'package:chronos/data/service/cache_service.dart';
 import 'package:chronos/data/service/uptime_method_channel.dart';
+import 'package:chronos/data/time_reference_dto.dart';
 import 'package:chronos/domain/calcs.dart';
 import 'package:chronos/domain/interval_helper.dart';
 import 'package:chronos/domain/time_integrity_checks.dart';
@@ -14,13 +16,27 @@ import 'package:chronos/domain/time_integrity_checks.dart';
 class ChronosController {
   final Calcs calcs;
   final TimeIntegrityChecks integrityChecks;
+  final CacheService cacheService;
 
-  ChronosController(this.calcs, this.integrityChecks);
+  ChronosController(this.calcs, this.integrityChecks, this.cacheService);
 
   TimeReference? ref;
 
   Future<int> get uptime async =>
       await UptimeMethodChannel.instance.getUptimeMs();
+
+  Future<void> ensureInitialized() async {
+    await cacheService.ensureInitialized();
+    final c = await cacheService.getString(TIME_REF_CACHE_KEY);
+
+    if (c != null) {
+      try {
+        ref = TimeReferenceDto.fromCache(c);
+      } catch (_) {
+        ref = null; // corrupt cache: start unsynced and wait for a sync
+      }
+    }
+  }
 
   /// [networkDateTime] is the real server instant and [serverUtcOffset] the
   /// server's offset at that instant, both from `ServerTimeParser.parse`.
@@ -35,6 +51,11 @@ class ChronosController {
       networkDateTime: networkDateTime.toUtc(),
       networkLatency: networkLatencyMs,
       serverUtcOffset: serverUtcOffset,
+    );
+
+    cacheService.storeString(
+      k: TIME_REF_CACHE_KEY,
+      v: TimeReferenceDto.toCache(ref!),
     );
   }
 
@@ -64,6 +85,11 @@ class ChronosController {
       networkLatency: networkLatencyMs,
       serverUtcOffset: parsed.offset,
       serverUtcOffsetZoneName: timezone,
+    );
+
+    cacheService.storeString(
+      k: TIME_REF_CACHE_KEY,
+      v: TimeReferenceDto.toCache(ref!),
     );
   }
 
