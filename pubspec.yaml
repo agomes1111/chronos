@@ -1,6 +1,6 @@
 name: chronos
 description: Custom true time clock based on hardware monotonic time.
-version: 1.0.0
+version: 1.2.0-alfa
 
 environment:
   sdk: ^3.13.1
