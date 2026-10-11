@@ -101,4 +101,40 @@ class Chronos {
   Future<LocalZonedTime> nowLocalZoned() async {
     return await _controller.getLocalZonedTime();
   }
+
+  Future<bool> isBetween({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async => await _controller.isBetween(
+    firstDateTimeString: firstDateTimeString,
+    lastDateTimeString: lastDateTimeString,
+    first: first,
+    last: last,
+  );
+
+  Future<bool> isBefore({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async => await _controller.isBefore(
+    firstDateTimeString: firstDateTimeString,
+    lastDateTimeString: lastDateTimeString,
+    first: first,
+    last: last,
+  );
+
+  Future<bool> isAfter({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async => await _controller.isAfter(
+    firstDateTimeString: firstDateTimeString,
+    lastDateTimeString: lastDateTimeString,
+    first: first,
+    last: last,
+  );
 }

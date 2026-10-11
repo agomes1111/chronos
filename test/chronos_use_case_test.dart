@@ -388,4 +388,54 @@ void main() {
       },
     );
   });
+
+  group('Use case: interval evaluation tests', () {
+    test('parse strings to date correctly', () async {
+      final refDateString = '2026-10-09 18:05:31.411065';
+      final initialDateString = '2026-10-09 16:05:31.411065';
+      final lastDateString = '2026-10-09 21:05:31.411065';
+
+      await chronos.syncFromString(date: refDateString, timezone: apiZone);
+      passTime(const Duration(minutes: 10));
+
+      final r = await chronos.isBetween(
+        firstDateTimeString: initialDateString,
+        lastDateTimeString: lastDateString,
+      );
+
+      expect(r, true);
+    });
+
+    test('signals before correctly', () async {
+      final refDateString = '2026-10-09 15:05:31.411065';
+      final initialDateString = '2026-10-09 16:05:31.411065';
+      final lastDateString = '2026-10-09 21:05:31.411065';
+
+      await chronos.syncFromString(date: refDateString, timezone: apiZone);
+      passTime(const Duration(minutes: 10));
+
+      final r = await chronos.isBefore(
+        firstDateTimeString: initialDateString,
+        lastDateTimeString: lastDateString,
+      );
+
+      expect(r, true);
+    });
+
+    test('signals after correctly', () async {
+      final refDateString = '2026-10-09 21:35:31.411065';
+      final initialDateString = '2026-10-09 16:05:31.411065';
+      final lastDateString = '2026-10-09 21:05:31.411065';
+
+      await chronos.syncFromString(date: refDateString, timezone: apiZone);
+      passTime(const Duration(minutes: 10));
+
+      final r = await chronos.isAfter(
+        firstDateTimeString: initialDateString,
+        lastDateTimeString: lastDateString,
+      );
+
+      expect(r, true);
+    });
+  });
 }

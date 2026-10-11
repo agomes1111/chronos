@@ -4,9 +4,11 @@ import 'package:chronos/data/entity/local_zoned_time.dart';
 import 'package:chronos/data/entity/remote_zoned_time.dart';
 import 'package:chronos/data/entity/time_integrity.dart';
 import 'package:chronos/data/entity/time_reference.dart';
+import 'package:chronos/data/final.dart';
 import 'package:chronos/data/server_time_parser.dart';
 import 'package:chronos/data/service/uptime_method_channel.dart';
 import 'package:chronos/domain/calcs.dart';
+import 'package:chronos/domain/interval_helper.dart';
 import 'package:chronos/domain/time_integrity_checks.dart';
 
 class ChronosController {
@@ -61,6 +63,7 @@ class ChronosController {
       networkDateTime: parsed.utc,
       networkLatency: networkLatencyMs,
       serverUtcOffset: parsed.offset,
+      serverUtcOffsetZoneName: timezone,
     );
   }
 
@@ -84,6 +87,93 @@ class ChronosController {
   /// The same calculated now, seen in the device's current OS timezone.
   Future<LocalZonedTime> getLocalZonedTime() async =>
       LocalZonedTime.fromInstant(await getInstant());
+
+  Future<bool> isBetween({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async {
+    assert(ref != null);
+    if (first != null && last != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return (await IntervalHelper.evaluateInterval(
+            reference: (await getInstant()).utc,
+            first: first,
+            last: last,
+          ) ==
+          INTERVAL_BETWEEN);
+    } else if (firstDateTimeString != null && lastDateTimeString != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return (await IntervalHelper.evaluateIntervalString(
+            reference: (await getInstant()).utc,
+            first: firstDateTimeString,
+            last: lastDateTimeString,
+            zoneName: ref!.serverUtcOffsetZoneName!,
+          ) ==
+          INTERVAL_BETWEEN);
+    } else {
+      throw StateError('must_provide_at_least_one_set_of_dates');
+    }
+  }
+
+  Future<bool> isBefore({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async {
+    assert(ref != null);
+    if (first != null && last != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return (await IntervalHelper.evaluateInterval(
+            reference: (await getInstant()).utc,
+            first: first,
+            last: last,
+          ) ==
+          INTERVAL_BEFORE);
+    } else if (firstDateTimeString != null && lastDateTimeString != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return (await IntervalHelper.evaluateIntervalString(
+            reference: (await getInstant()).utc,
+            first: firstDateTimeString,
+            last: lastDateTimeString,
+            zoneName: ref!.serverUtcOffsetZoneName!,
+          ) ==
+          INTERVAL_BEFORE);
+    } else {
+      throw StateError('must_provide_at_least_one_set_of_dates');
+    }
+  }
+
+  Future<bool> isAfter({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async {
+    assert(ref != null);
+    if (first != null && last != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return (await IntervalHelper.evaluateInterval(
+            reference: (await getInstant()).utc,
+            first: first,
+            last: last,
+          ) ==
+          INTERVAL_AFTER);
+    } else if (firstDateTimeString != null && lastDateTimeString != null) {
+      assert(ref?.serverUtcOffsetZoneName != null);
+      return (await IntervalHelper.evaluateIntervalString(
+            reference: (await getInstant()).utc,
+            first: firstDateTimeString,
+            last: lastDateTimeString,
+            zoneName: ref!.serverUtcOffsetZoneName!,
+          ) ==
+          INTERVAL_AFTER);
+    } else {
+      throw StateError('must_provide_at_least_one_set_of_dates');
+    }
+  }
 
   TimeReference _requireRef() {
     final reference = ref;

@@ -16,12 +16,14 @@ class TimeReference {
   /// Server UTC offset at the sync (e.g. `Duration(hours: -3)`). Only needed
   /// to build a `RemoteZonedTime`; null means the server zone is unknown.
   final Duration? serverUtcOffset;
+  final String? serverUtcOffsetZoneName;
 
   TimeReference({
     required this.hardwareUptimeMs,
     required this.networkDateTime,
     this.networkLatency,
     this.serverUtcOffset,
+    this.serverUtcOffsetZoneName,
   }) : assert(
          networkDateTime.isUtc,
          'TimeReference.networkDateTime must be a UTC DateTime',
