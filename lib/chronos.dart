@@ -102,6 +102,18 @@ class Chronos {
     return await _controller.getLocalZonedTime();
   }
 
+  Future<int> evaluateInterval({
+    String? firstDateTimeString,
+    String? lastDateTimeString,
+    DateTime? first,
+    DateTime? last,
+  }) async => await _controller.evaluateInterval(
+    firstDateTimeString: firstDateTimeString,
+    lastDateTimeString: lastDateTimeString,
+    first: first,
+    last: last,
+  );
+
   Future<bool> isBetween({
     String? firstDateTimeString,
     String? lastDateTimeString,
