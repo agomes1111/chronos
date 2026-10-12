@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'chronos'
-  s.version          = '1.0.0' # keep in sync with pubspec.yaml
+  s.version          = '1.2.2' # keep in sync with pubspec.yaml
   s.summary          = 'Native monotonic uptime driver and tamper guard for Chronos.'
   s.description      = <<-DESC
 A Flutter plugin providing server clock synchronization, monotonic uptime tracking, and tamper detection.

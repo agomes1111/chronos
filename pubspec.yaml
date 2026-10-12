@@ -1,6 +1,6 @@
 name: chronos
 description: Custom true time clock based on hardware monotonic time.
-version: 1.2.0-alfa
+version: 1.2.2
 
 environment:
   sdk: ^3.13.1
@@ -20,7 +20,7 @@ flutter:
         package: com.chronos
         pluginClass: ChronosPlugin
       ios:
-        pluginClass: ChronosPlugin
+        pluginClass: SwiftChronosPlugin
 dev_dependencies:
   flutter_test:
     sdk: flutter
